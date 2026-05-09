@@ -1,0 +1,1 @@
+#QR сканер для Fcashew_bot в Telegram mini-app
