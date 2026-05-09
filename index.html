@@ -5,156 +5,121 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>QR Scanner</title>
-    <!-- Подключаем Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Подключаем библиотеку сканера -->
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background-color: #000;
-            color: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            overflow: hidden;
+        /* Сброс всех отступов, чтобы занять 100% экрана */
+        * {
+            box-sizing: border-box;
         }
 
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Контейнер для сканера на весь экран */
         #reader {
-            width: 100% !important;
-            height: 100% !important;
+            width: 100vw !important;
+            height: 100vh !important;
             border: none !important;
         }
 
-        /* Кастомизация внутренней рамки сканера */
-        #reader__scan_region {
-            background: rgba(0, 0, 0, 0.3);
+        /* Убираем лишние надписи библиотеки */
+        #reader__dashboard,
+        #reader__status_span {
+            display: none !important;
         }
 
         #reader video {
+            width: 100% !important;
+            height: 100% !important;
             object-fit: cover !important;
+            /* Видео заполнит весь экран без черных полос */
         }
 
-        .controls {
+        /* Кнопка закрытия */
+        .close-btn {
             position: absolute;
             top: 20px;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            z-index: 10;
-        }
-
-        .close-btn {
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
             background: rgba(255, 255, 255, 0.2);
             border: none;
             color: white;
-            padding: 10px 25px;
-            border-radius: 20px;
+            padding: 12px 30px;
+            border-radius: 25px;
             font-size: 16px;
             backdrop-filter: blur(10px);
-            cursor: pointer;
+            -webkit-backdrop-filter: blur(10px);
         }
 
-        .overlay {
+        /* Статус-бар внизу */
+        .status-bar {
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            pointer-events: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* Анимация сканирующей линии */
-        .scan-line {
-            width: 80%;
-            height: 2px;
-            background: #248bfe;
-            box-shadow: 0 0 15px #248bfe;
-            position: absolute;
-            animation: scan 2s infinite ease-in-out;
-        }
-
-        @keyframes scan {
-            0% {
-                top: 30%;
-            }
-
-            50% {
-                top: 70%;
-            }
-
-            100% {
-                top: 30%;
-            }
+            bottom: 40px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            z-index: 10;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
     </style>
 </head>
 
 <body>
 
-    <div class="controls">
-        <button class="close-btn" onclick="closeScanner()">Закрыть</button>
-    </div>
+    <button class="close-btn" onclick="tg.close()">Закрыть</button>
 
     <div id="reader"></div>
-    <div class="overlay">
-        <div class="scan-line"></div>
-    </div>
+
+    <div class="status-bar">Поиск QR-кода...</div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Разворачиваем на всю высоту
+        tg.expand();
+        tg.ready();
 
-        function closeScanner() {
-            tg.close();
-        }
+        // Настройка параметров сканера под экран телефона
+        const screenWidth = window.innerWidth;
+        const qrBoxSize = Math.floor(screenWidth * 0.7); // Рамка будет 70% от ширины экрана
 
-        function onScanSuccess(decodedText, decodedResult) {
-            // Как только код найден:
-            // 1. Вибрируем (тактильный отклик)
+        function onScanSuccess(decodedText) {
             if (tg.HapticFeedback) {
                 tg.HapticFeedback.notificationOccurred('success');
             }
+            // Выводим alert для теста (потом уберем, когда подключим бота)
+            // alert("Код найден: " + decodedText); 
 
-            // 2. Отправляем данные боту
             tg.sendData(decodedText);
-
-            // 3. Закрываем Web App (происходит автоматически после sendData, но для страховки)
-            setTimeout(() => {
-                tg.close();
-            }, 100);
+            setTimeout(() => tg.close(), 150);
         }
 
-        function onScanFailure(error) {
-            // Ошибки сканирования игнорируем, чтобы продолжать поиск
-        }
+        const html5QrCode = new Html5Qrcode("reader");
 
-        let html5QrcodeScanner = new Html5Qrcode("reader");
-
-        // Настройки камеры
         const config = {
-            fps: 15,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0
+            fps: 20,
+            qrbox: { width: qrBoxSize, height: qrBoxSize }, // Строго квадратная рамка
+            aspectRatio: window.innerWidth / window.innerHeight // Подстройка под экран
         };
 
-        // Запуск камеры (используем заднюю камеру 'environment')
-        html5QrcodeScanner.start(
+        html5QrCode.start(
             { facingMode: "environment" },
             config,
-            onScanSuccess,
-            onScanFailure
-        ).catch((err) => {
-            console.error("Ошибка запуска камеры: ", err);
-            alert("Не удалось включить камеру. Проверьте разрешения.");
+            onScanSuccess
+        ).catch(err => {
+            console.error(err);
+            document.querySelector('.status-bar').innerText = "Ошибка камеры";
         });
     </script>
 </body>
