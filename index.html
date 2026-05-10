@@ -6,8 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>QR Scanner</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Самая популярная библиотека для простых Web QR-сканеров -->
-    <script src="https://rawgit.com/schmich/instascan-builds/master/instascan.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -25,12 +24,26 @@
             flex-direction: column;
         }
 
-        #preview {
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover;
+        #reader {
+            width: 100vw !important;
+            height: 100vh !important;
+            border: none !important;
         }
 
+        /* Убираем мусор библиотеки */
+        #reader__dashboard,
+        #reader__status_span,
+        #reader img {
+            display: none !important;
+        }
+
+        #reader video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+        }
+
+        /* Кнопка снизу */
         .close-btn {
             position: absolute;
             bottom: 30px;
@@ -48,19 +61,6 @@
             -webkit-backdrop-filter: blur(15px);
         }
 
-        .qr-guide {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 250px;
-            height: 250px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 30px;
-            pointer-events: none;
-            z-index: 50;
-        }
-
         .status-bar {
             position: absolute;
             bottom: 100px;
@@ -69,6 +69,7 @@
             color: rgba(255, 255, 255, 0.6);
             font-size: 13px;
             z-index: 10;
+            letter-spacing: 1px;
             text-transform: uppercase;
         }
     </style>
@@ -76,62 +77,49 @@
 
 <body>
 
-    <video id="preview"></video>
-    <div class="qr-guide"></div>
-    <div class="status-bar" id="status">Запуск камеры...</div>
-    <button class="close-btn" onclick="window.Telegram.WebApp.close()">Назад</button>
+    <div id="reader"></div>
+    <div class="status-bar" id="status">Поиск QR-кода...</div>
+    <button class="close-btn" onclick="tg.close()">Назад</button>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
         tg.ready();
 
-        const statusBar = document.getElementById('status');
+        const screenWidth = window.innerWidth;
+        const qrBoxSize = Math.floor(screenWidth * 0.7);
 
-        // Инициализация сканера
-        let scanner = new Instascan.Scanner({
-            video: document.getElementById('preview'),
-            mirror: false, // Не зеркалить заднюю камеру
-            backgroundScan: false // Не сканировать, если вкладка свернута
-        });
-
-        // Слушатель успешного сканирования
-        scanner.addListener('scan', function (content) {
+        function onScanSuccess(decodedText) {
             if (tg.HapticFeedback) {
                 tg.HapticFeedback.notificationOccurred('success');
             }
-            tg.sendData(content);
+            tg.sendData(decodedText);
             setTimeout(() => tg.close(), 150);
-        });
+        }
 
-        // Поиск доступных камер
-        Instascan.Camera.getCameras().then(function (cameras) {
-            if (cameras.length > 0) {
-                // Ищем заднюю камеру (обычно последняя в списке или та, в имени которой есть 'back')
-                let selectedCamera = cameras[0];
-                for (let i = 0; i < cameras.length; i++) {
-                    if (cameras[i].name.indexOf('back') !== -1) {
-                        selectedCamera = cameras[i];
-                        break;
-                    }
-                }
+        const html5QrCode = new Html5Qrcode("reader");
 
-                // Если камер несколько и мы не нашли 'back', берем последнюю (обычно это основная)
-                if (selectedCamera === cameras[0] && cameras.length > 1) {
-                    selectedCamera = cameras[cameras.length - 1];
-                }
-
-                scanner.start(selectedCamera).then(() => {
-                    statusBar.innerText = "Поиск QR-кода...";
-                }).catch(e => {
-                    statusBar.innerText = "Ошибка: " + e;
-                });
-            } else {
-                statusBar.innerText = "Камеры не найдены";
+        // Улучшенный конфиг для четкости
+        const config = {
+            fps: 30,
+            qrbox: { width: qrBoxSize, height: qrBoxSize },
+            aspectRatio: window.innerWidth / window.innerHeight,
+            // Пытаемся заставить камеру дать HD разрешение
+            videoConstraints: {
+                facingMode: "environment",
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                focusMode: "continuous"
             }
-        }).catch(function (e) {
-            statusBar.innerText = "Ошибка доступа: " + e;
-            console.error(e);
+        };
+
+        html5QrCode.start(
+            { facingMode: "environment" },
+            config,
+            onScanSuccess
+        ).catch(err => {
+            console.error(err);
+            document.getElementById('status').innerText = "Ошибка: " + err;
         });
     </script>
 </body>
