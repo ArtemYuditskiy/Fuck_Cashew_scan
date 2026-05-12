@@ -14,20 +14,27 @@
             color: #fff;
             font-family: sans-serif;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100vh;
         }
 
+        /* Убрали фиксированную высоту vh, оставили только ширину */
         #reader {
-            width: 100vw !important;
-            height: 100vh !important;
+            width: 100% !important;
         }
 
+        /* Прячем лишние элементы библиотеки */
         #reader__dashboard,
         #reader__status_span,
         img {
             display: none !important;
         }
 
+        /* Видео должно занимать весь контейнер без искажений */
         #reader video {
+            width: 100% !important;
             object-fit: cover !important;
         }
 
@@ -47,6 +54,7 @@
             margin-bottom: 20px;
             font-size: 14px;
             opacity: 0.8;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
         }
 
         .btn {
@@ -89,41 +97,35 @@
         }
 
         async function startScanner() {
-            const screenWidth = window.innerWidth;
-            const qrBoxSize = Math.floor(screenWidth * 0.7);
+            // Динамический расчет квадрата через функцию — это "киллер-фича" библиотеки
+            const qrboxFunction = function (viewfinderWidth, viewfinderHeight) {
+                let minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                let fontSize = Math.floor(minEdge * 0.7);
+                return {
+                    width: fontSize,
+                    height: fontSize
+                };
+            }
 
-            // Формируем конфиг динамически, чтобы не плодить сущности
             const config = {
                 fps: isIOS ? 30 : 25,
-                qrbox: { width: qrBoxSize, height: qrBoxSize },
-                // На Android убираем aspectRatio, чтобы не было NotReadableError
-                aspectRatio: isIOS ? (window.innerWidth / window.innerHeight) : undefined,
+                qrbox: qrboxFunction, // Передаем функцию вместо объекта
+                aspectRatio: 1.0,     // Форсируем соотношение сторон для внутреннего холста
                 experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: !isIOS // Включаем AI-детектор для Android
-                },
-                videoConstraints: isIOS ? {
-                    facingMode: "environment",
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                } : {
-                    facingMode: "environment"
+                    useBarCodeDetectorIfSupported: !isIOS
                 }
             };
 
             try {
-                // Вызываем старт ОДИН раз. 
-                // Передача { facingMode: "environment" } вместо ID камеры 
-                // заставляет систему саму найти заднюю камеру без лишнего getCameras()
                 await html5QrCode.start(
                     { facingMode: "environment" },
                     config,
                     onScanSuccess
                 );
-
-                document.getElementById('status').innerText = "Поиск QR-кода...";
+                document.getElementById('status').innerText = "Наведите на QR-код";
             } catch (err) {
-                console.error("Ошибка запуска:", err);
-                document.getElementById('status').innerText = "Ошибка доступа к камере";
+                console.error(err);
+                document.getElementById('status').innerText = "Ошибка доступа";
             }
         }
 
