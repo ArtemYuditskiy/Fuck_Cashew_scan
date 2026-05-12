@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QR Scanner</title>
+    <title>QR Scanner Pro</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
@@ -30,7 +30,6 @@
             border: none !important;
         }
 
-        /* Убираем мусор библиотеки */
         #reader__dashboard,
         #reader__status_span,
         #reader img {
@@ -43,7 +42,6 @@
             object-fit: cover !important;
         }
 
-        /* Кнопка снизу */
         .close-btn {
             position: absolute;
             bottom: 30px;
@@ -87,66 +85,82 @@
         tg.ready();
 
         const html5QrCode = new Html5Qrcode("reader");
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
         async function startScanner() {
             const screenWidth = window.innerWidth;
-            // Оптимальный размер окна: 70% от ширины экрана
             const qrBoxSize = Math.floor(screenWidth * 0.7);
 
-            // Конфигурация без жестких ограничений (для универсальности)
-            const config = {
-                fps: 20, // 20 FPS достаточно для QR и не перегревает слабые процессоры
+            // Конфиг для iOS (максимальная стабильность и фокус)
+            const iosConfig = {
+                fps: 30,
                 qrbox: { width: qrBoxSize, height: qrBoxSize },
-                // Важно: на Android aspectRatio может вызывать черные полосы, если жестко задан
-                aspectRatio: undefined,
+                aspectRatio: window.innerWidth / window.innerHeight,
+                videoConstraints: {
+                    facingMode: "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            };
+
+            // Конфиг для Android (производительность + AI дектор)
+            const androidConfig = {
+                fps: 25,
+                qrbox: { width: qrBoxSize, height: qrBoxSize },
                 experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: true // Родной API Google/Android
+                    useBarCodeDetectorIfSupported: true
                 }
             };
 
             try {
-                // Стратегия №1: Пробуем запустить с базовыми настройками "задняя камера"
-                // Это самый универсальный способ для 90% браузеров
-                await html5QrCode.start(
-                    { facingMode: "environment" },
-                    config,
-                    onScanSuccess
-                );
-            } catch (err) {
-                console.warn("Базовый запуск не удался, пробуем перебор камер...", err);
-
-                try {
-                    // Стратегия №2: Если environment не сработал, перебираем устройства вручную
+                if (isIOS) {
+                    // iPhone лучше всего работает с прямой передачей facingMode
+                    await html5QrCode.start({ facingMode: "environment" }, iosConfig, onScanSuccess);
+                } else {
+                    // Для Android ищем правильную заднюю камеру
                     const devices = await Html5Qrcode.getCameras();
+
                     if (devices && devices.length > 0) {
-                        // Берем последнюю камеру в списке (обычно это основная задняя)
-                        const lastCameraId = devices[devices.length - 1].id;
-                        await html5QrCode.start(lastCameraId, config, onScanSuccess);
+                        // Фильтруем только задние камеры
+                        const backCameras = devices.filter(d =>
+                            d.label.toLowerCase().includes('back') ||
+                            d.label.toLowerCase().includes('rear')
+                        );
+
+                        // Берем последнюю из задних (на Samsung это обычно нужный модуль)
+                        // Если названий нет, берем просто последнюю в списке
+                        const targetCameraId = backCameras.length > 0
+                            ? backCameras[backCameras.length - 1].id
+                            : devices[devices.length - 1].id;
+
+                        await html5QrCode.start(targetCameraId, androidConfig, onScanSuccess);
                     } else {
-                        throw new Error("Камеры не найдены");
+                        // Запасной вариант
+                        await html5QrCode.start({ facingMode: "environment" }, androidConfig, onScanSuccess);
                     }
-                } catch (finalErr) {
-                    document.getElementById('status').innerText = "Ошибка доступа: " + finalErr;
                 }
+            } catch (err) {
+                console.error("Ошибка запуска:", err);
+                document.getElementById('status').innerText = "Ошибка: " + err;
             }
         }
 
         function onScanSuccess(decodedText) {
-            // Базовая валидация: игнорируем пустые или слишком короткие строки
-            if (!decodedText || decodedText.length < 3) return;
+            if (!decodedText) return;
 
+            // Виброотклик
             if (tg.HapticFeedback) {
                 tg.HapticFeedback.notificationOccurred('success');
             }
 
-            // Передаем данные в бот
+            // Отправка данных боту
             tg.sendData(decodedText);
 
-            // Небольшая задержка перед закрытием для визуального отклика
+            // Закрываем WebApp чуть позже, чтобы пользователь увидел успех
             setTimeout(() => tg.close(), 100);
         }
 
-        // Запускаем
+        // Старт при загрузке
         startScanner();
     </script>
 </body>
