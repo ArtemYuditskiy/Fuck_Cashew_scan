@@ -92,36 +92,38 @@
             const screenWidth = window.innerWidth;
             const qrBoxSize = Math.floor(screenWidth * 0.7);
 
-            // Прямые настройки для браузера
-            const constraints = isIOS ? {
-                facingMode: "environment",
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            } : {
-                facingMode: "environment"
-            };
-
+            // Формируем конфиг динамически, чтобы не плодить сущности
             const config = {
                 fps: isIOS ? 30 : 25,
                 qrbox: { width: qrBoxSize, height: qrBoxSize },
-                // На Android aspectRatio часто вызывает NotReadableError
+                // На Android убираем aspectRatio, чтобы не было NotReadableError
                 aspectRatio: isIOS ? (window.innerWidth / window.innerHeight) : undefined,
                 experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: !isIOS
+                    useBarCodeDetectorIfSupported: !isIOS // Включаем AI-детектор для Android
+                },
+                videoConstraints: isIOS ? {
+                    facingMode: "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                } : {
+                    facingMode: "environment"
                 }
             };
 
             try {
+                // Вызываем старт ОДИН раз. 
+                // Передача { facingMode: "environment" } вместо ID камеры 
+                // заставляет систему саму найти заднюю камеру без лишнего getCameras()
                 await html5QrCode.start(
-                    constraints,
+                    { facingMode: "environment" },
                     config,
                     onScanSuccess
                 );
 
                 document.getElementById('status').innerText = "Поиск QR-кода...";
             } catch (err) {
-                console.error("Ошибка:", err);
-                document.getElementById('status').innerText = "Ошибка: доступ запрещен или камера занята";
+                console.error("Ошибка запуска:", err);
+                document.getElementById('status').innerText = "Ошибка доступа к камере";
             }
         }
 
