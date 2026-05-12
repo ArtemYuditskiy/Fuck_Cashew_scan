@@ -20,24 +20,24 @@
             height: 100vh;
         }
 
-        /* Убрали фиксированную высоту vh, оставили только ширину */
         #reader {
             width: 100% !important;
         }
 
-        /* Прячем лишние элементы библиотеки */
+        /* Прячем элементы управления библиотеки */
         #reader__dashboard,
         #reader__status_span,
         img {
             display: none !important;
         }
 
-        /* Видео должно занимать весь контейнер без искажений */
+        /* Видео поток */
         #reader video {
             width: 100% !important;
             object-fit: cover !important;
         }
 
+        /* Оверлей интерфейса */
         .ui-overlay {
             position: absolute;
             bottom: 40px;
@@ -65,6 +65,7 @@
             border-radius: 12px;
             color: #fff;
             backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
     </style>
 </head>
@@ -87,6 +88,7 @@
 
         function onScanSuccess(decodedText) {
             if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+
             html5QrCode.stop().then(() => {
                 tg.sendData(decodedText);
                 tg.close();
@@ -97,20 +99,20 @@
         }
 
         async function startScanner() {
-            // Динамический расчет квадрата через функцию — это "киллер-фича" библиотеки
+            // Та самая функция, которая гарантирует квадратную рамку
             const qrboxFunction = function (viewfinderWidth, viewfinderHeight) {
                 let minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-                let fontSize = Math.floor(minEdge * 0.7);
+                let boxSize = Math.floor(minEdge * 0.7);
                 return {
-                    width: fontSize,
-                    height: fontSize
+                    width: boxSize,
+                    height: boxSize
                 };
             }
 
             const config = {
                 fps: isIOS ? 30 : 25,
-                qrbox: qrboxFunction, // Передаем функцию вместо объекта
-                aspectRatio: 1.0,     // Форсируем соотношение сторон для внутреннего холста
+                qrbox: qrboxFunction,
+                aspectRatio: 1.0, // Оставляем 1.0 для корректной отрисовки холста
                 experimentalFeatures: {
                     useBarCodeDetectorIfSupported: !isIOS
                 }
@@ -125,7 +127,7 @@
                 document.getElementById('status').innerText = "Наведите на QR-код";
             } catch (err) {
                 console.error(err);
-                document.getElementById('status').innerText = "Ошибка доступа";
+                document.getElementById('status').innerText = "Ошибка доступа к камере";
             }
         }
 
